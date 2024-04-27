@@ -1,0 +1,5 @@
+# ignore temp files
+temp/
+
+# ignore IDEA settings
+.idea/
