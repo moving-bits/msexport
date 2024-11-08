@@ -9,7 +9,13 @@
  * Run with: php msexport.php <full path to MuseScore song file>
  * Configuration of export path etc. is done in include file i_config.php
  *
+ * todo: MuseScore 4 issues
+ * - PDF exports only exports full score, no parts, and also does not consider given page sizes
+ * - adaption of volume per part does not yet work
+ *
  * change history:
+ * 2024-11-08   moving-bits     ignore excerpts in MuseScore 4 files
+ * 2024-11-03	moving-bits		identify score file name in MuseScore 4 files
  * 2024-04-27   moving-bits     first published version (v1.0)
  * 2024-04-14   moving-bits     extract classes and configuration
  * 2023-06-17	moving-bits		include instrument named "solo"
@@ -182,7 +188,20 @@ abstract class CAbstractMuseScoreExport {
         if($hIdx === FALSE) {
             $this->dieWithError('error reading content structure (no valid XML)');
         }
-        $cFN = (string)$hIdx->rootfiles->rootfile['full-path'];
+
+        // extract filename of actual score
+        $cFN = "";
+        $aPaths = $hIdx->rootfiles->rootfile;
+        for($i = 0; $i < count($aPaths); $i++) {
+            $aPathinfo = pathinfo($aPaths[$i]['full-path'], PATHINFO_ALL);
+            if ($aPathinfo['extension'] === "mscx" && substr($aPathinfo['dirname'], 0, 9) != 'Excerpts/') {
+                $cFN = $aPaths[$i]['full-path'];
+                break;
+            }
+        }
+        if ($cFN == '') {
+            $this->dieWithError('missing name of actual score file');
+        }
 
         // read actual score
         $hMS2 = $hMS->getFromName($cFN);

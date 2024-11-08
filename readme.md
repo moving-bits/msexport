@@ -17,32 +17,41 @@ This script will generate mp3 files for every part (instrument) it finds in the 
 
 It generates several versions for every part:
 
-| version       |characteristics| file name suffix |
-|---------------|---|------------------|
-| default version |current instrument is a bit louder, all other instruments are a bit muted| `.mp3`           |
-| Karaoke       |current instrument is off, all other instruments at regular volume| `(Karaoke).mp3`  |
-| Solo          |only current instrument, all other instruments are off| `(Solo).mp3`     |
-| Piano         |similar to default version, but all voices are replaced by "Grand Piano" instrument| `(Piano).mp3`    |
+| version         | characteristics                                                                     | file name suffix |
+|-----------------|-------------------------------------------------------------------------------------|------------------|
+| default version | current instrument is a bit louder, all other instruments are a bit muted           | `.mp3`           |
+| Karaoke         | current instrument is off, all other instruments at regular volume                  | `(Karaoke).mp3`  |
+| Solo            | only current instrument, all other instruments are off                              | `(Solo).mp3`     |
+| Piano           | similar to default version, but all voices are replaced by "Grand Piano" instrument | `(Piano).mp3`    |
 
 Additionally, three more files are generated:
 
-| version       |characteristics| file name suffix    |
-|---------------|---|---------------------|
-| all|all instruments in same volume| `-Alle.mp3`         |
-| all (Piano)|all instruments in same volume, voices replaced by "Grand Piano" instrument| `-Alle (Piano).mp3` |
-|  score parts|scores for all instruments + per part|`.pdf`|
+| version     | characteristics                                                             | file name suffix    |
+|-------------|-----------------------------------------------------------------------------|---------------------|
+| all         | all instruments in same volume                                              | `-Alle.mp3`         |
+| all (Piano) | all instruments in same volume, voices replaced by "Grand Piano" instrument | `-Alle (Piano).mp3` |
+| score parts | scores for all instruments + per part                                       | `.pdf`              |
 
 See [example section](#example) for an illustration.
 
 ## System requirements
-- MuseScore 3
-- MuseScore score files in format 3.x or 2.x
+- MuseScore 3 (or MuseScore 4, but with limitations)
+- MuseScore score files in format 3.x or 2.x (or 4.x, but with limitations)
 - PHP 8 (tested with PHP 8.1) with mbstring extension, called using the command line
 - For multithreaded version: php_parallel extension
 
-Note 1: This script may or may not work with MuseScore 4 program and/or scores generated with MuseScore 4 - this is currently untested, as the new MuseSounds in MuseScore 4 are fine generally, but they have their quirks (like leaving out notes regarded as too high or too low for the specific voice), and generating mp3 files from it does not work well for me (last tested with MuseScore 4.1). Therefore, I'm still at MuseScore 3 for the time being.
+### MuseScore version / MuseScore 4 limitations
+This script is currently used mainly in conjunction with MuseScore 3. With latest version of this script, it can also be used with a MuseScore 4 executable, but with some limitations:
+- MuseScore 4 PDF export does not yet work in the same way as with MuseScore 3:
+  - It will only generate a single PDF with all instruments, whereas MuseScore 3 additionally added excerpts for every instrument/voice. ([GitHub issue](https://github.com/musescore/MuseScore/issues/24532))
+  - If a score is using "continuous view", exported PDF will have a very long page (instead of being split up into separate pages according to the configured page size)  ([GitHub issue](https://github.com/musescore/MuseScore/issues/22887))
+- Modification of volume does not work currently with MuseScore 4 files. This is a script issue of msexport, I'm working on it.
 
-Note 2: This script is testing using a Windows environment. It _should_ work under other platform supported by MuseScore and PHP as well, but that's not being tested by me.
+(There are GitHub items for the PDF issues, but as they got assigned P3 / "Prio: low" it may take some time to get them fixed, if at all.)
+
+### Operating system environment
+
+This script is testing using a Windows environment. It _should_ work under other platform supported by MuseScore and PHP as well, but that's not being tested by me.
 
 ## Configuration
 Configuration is done in i_config.php, see that file for additional information on configuration options.
