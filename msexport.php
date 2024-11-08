@@ -10,10 +10,12 @@
  * Configuration of export path etc. is done in include file i_config.php
  *
  * todo: MuseScore 4 issues
- * - PDF exports only exports full score, no parts, and also does not consider given page sizes
- * - adaption of volume per part does not yet work
+ * - PDF exports only exports full score, no parts (GitHub issue)
+ * - PDF exports for files in "continuous mode" ignores page sizes and produces and "endless" page (GitHub issue)
+ * - switching instruments does not yet work
  *
  * change history:
+ * 2024-11-08   moving-bits     adjust volume in MuseScore 4 files
  * 2024-11-08   moving-bits     ignore excerpts in MuseScore 4 files
  * 2024-11-03	moving-bits		identify score file name in MuseScore 4 files
  * 2024-04-27   moving-bits     first published version (v1.0)
@@ -36,8 +38,8 @@ require_once 'i_config.php';
 
 // --------------------------------------------------------------------------------------------------------------------
 
-const MSEXPORT_VERSION = '1.0';
-const MSEXPORT_DATE = '2024-04';
+const MSEXPORT_VERSION = '1.1';
+const MSEXPORT_DATE = '2024-11';
 echo "\nmsexport v" . MSEXPORT_VERSION . " - export MuseScore score as mp3 parts (and more)\n(c) " . MSEXPORT_DATE . " moving-bits (https://github.com/moving-bits/)\nDistributed under Apache 2.0 license\n\n";
 
 if (!extension_loaded('mbstring')) {
@@ -51,6 +53,8 @@ if (!$bParallelExists && !bUSE_SINGLE_THREADED) {
     die();
 }
 
+const MS4_AUDIOSETTINGS = 'audiosettings.json';
+
 // --------------------------------------------------------------------------------------------------------------------
 
 /**
@@ -62,6 +66,7 @@ abstract class CAbstractMuseScoreExport {
 
     protected $aParts = [];
     private $aPart = [];
+    private $aAudio = null;
     protected $iNumParts = 0;
     protected $cVersion = ''; // MuseScore file version
     protected $aFN; // path components of source file
@@ -111,6 +116,23 @@ abstract class CAbstractMuseScoreExport {
         for($j=0; $j < $this->iNumParts; $j++) {
             $this->aPart[$j]->Instrument->Channel->controller[$this->aParts[$j]['iVolumeCtrlIdx']]['value'] = ($this->aParts[$j]['bIsVoice'] ? ($iPart == $j ? $iVolThis : $iVolOthers) : $iVolInstruments);
         }
+        if ($this->aAudio != null) { // MS4-specific
+            $iPartIdLookup = array_key_exists($iPart, $this->aParts) ? $this->aParts[$iPart]['iPartId'] : -1;
+            foreach($this->aAudio['tracks'] as &$aTrack) {
+                $bIsVoice = false;
+                for($j=0; $j < $this->iNumParts; $j++) {
+                    if ($this->aParts[$j]['iPartId'] == $aTrack['partId']) {
+                        $bIsVoice = $this->aParts[$j]['bIsVoice'];
+                        break;
+                    }
+                }
+                $aTrack['out']['volumeDb'] = $this->volumePercentToDb(($bIsVoice ? ($iPartIdLookup == $aTrack['partId'] ? $iVolThis : $iVolOthers) : $iVolInstruments));
+            }
+        }
+    }
+
+    private function volumePercentToDb($iVolumePercent) {
+        return $iVolumePercent < 5 ? -60 : ($iVolumePercent < 60 ? -9 : 0);
     }
 
     protected function setInstruments($iInstrument) {
@@ -123,7 +145,7 @@ abstract class CAbstractMuseScoreExport {
 
     protected function print_info() {
         for($i=0; $i < $this->iNumParts; $i++) {
-            echo 'Part #' . $i . ': '
+            echo 'Part #' . $this->aParts[$i]['iPartId'] . ': '
                 . $this->aParts[$i]['cLongname']
                 . ' (' . ($this->aParts[$i]['bIsVoice'] ? 'voice' : 'instrument') . ')'
                 . ' (sound=' . $this->aPart[$i]->Instrument->Channel->program['value'] . ')'
@@ -142,6 +164,9 @@ abstract class CAbstractMuseScoreExport {
         // open copy, update score, and save file
         $hCopy = $this->open_musescore($cNewFN);
         $hCopy->addFromString($this->aFN['filename'] . '.mscx', $this->hMS3->asXML());
+        if ($this->aAudio != null) { // MS4-specific
+            $hCopy->addFromString(MS4_AUDIOSETTINGS, json_encode($this->aAudio));
+        }
         $hCopy->close();
 
         // remember parameters for actual program call
@@ -208,7 +233,6 @@ abstract class CAbstractMuseScoreExport {
         if($hMS2 === FALSE) {
             $this->dieWithError('error reading score from "' . $cFN . '"');
         }
-        $hMS->close();
         $this->hMS3 = simplexml_load_string($hMS2);
         if($this->hMS3 === FALSE) {
             $this->dieWithError('error reading score (no valid XML)');
@@ -230,12 +254,28 @@ abstract class CAbstractMuseScoreExport {
                 $hController->addAttribute('value', '80');
                 $iVolumeCtrlIdx = count($this->aPart[$i]->Instrument->Channel->controller) - 1;
             }
+            $iPartId = intval($this->aPart[$i]['id']);
+            if ($iPartId == 0) {
+                $iPartId = $i;
+            }
             $this->aParts[] = array(
                 'bIsVoice'			=> $this->isVoice($i),
                 'cLongname'			=> (string)$this->aPart[$i]->Instrument->longName,
-                'iVolumeCtrlIdx'	=> $iVolumeCtrlIdx
+                'iVolumeCtrlIdx'	=> $iVolumeCtrlIdx,
+                'iPartId'			=> $iPartId // relevant for relation to audio settings in MS4
             );
         }
+
+        // extract audio settings (MS4 files only)
+        $cTemp = $hMS->getFromName(MS4_AUDIOSETTINGS);
+        if ($cTemp !== FALSE) {
+            $this->aAudio = json_decode($cTemp, true);
+        }
+
+        // close input score
+        $hMS->close();
+
+        // -----------------------------------------------------------------------------
 
         // output instrument info
         $this->print_info();
