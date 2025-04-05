@@ -3,3 +3,6 @@ temp/
 
 # ignore IDEA settings
 .idea/
+
+# configuration file with individual settings
+i_config.php

@@ -3,18 +3,19 @@
 /**
  * msexport.php: Export parts of MuseScore file as mp3 file (in different variations)
  *
- * (c) 2020-2024 moving-bits (https://github.com/moving-bits)
+ * (c) 2020-2025 moving-bits (https://github.com/moving-bits)
  * Distributed under Apache 2.0 license
  *
  * Run with: php msexport.php <full path to MuseScore song file>
- * Configuration of export path etc. is done in include file i_config.php
+ * >>> Configuration of export path etc. is done in include file i_config.php <<<
  *
  * todo: MuseScore 4 issues
- * - PDF exports only exports full score, no parts (GitHub issue)
- * - PDF exports for files in "continuous mode" ignores page sizes and produces and "endless" page (GitHub issue)
+ * - PDF exports only exports full score, no parts (GitHub issue: https://github.com/musescore/MuseScore/issues/22887)
+ * - PDF exports for files in "continuous mode" ignores page sizes and produces an "endless" page (GitHub issue: https://github.com/musescore/MuseScore/issues/24532)
  * - switching instruments does not yet work
  *
  * change history:
+ * 2025-04-04   moving-bits     put configuration defaults in separate config file i_config_defaults.php - breaking change: naming of configuration items
  * 2024-11-08   moving-bits     adjust volume in MuseScore 4 files
  * 2024-11-08   moving-bits     ignore excerpts in MuseScore 4 files
  * 2024-11-03	moving-bits		identify score file name in MuseScore 4 files
@@ -32,20 +33,27 @@
  * 2020-04-01	moving-bits		initial v0.1: analysis
  */
 
-
-// do all configuration in this file
-require_once 'i_config.php';
-
 // --------------------------------------------------------------------------------------------------------------------
+// check PHP environment, load program default & individual configuration
 
-const MSEXPORT_VERSION = '1.1';
-const MSEXPORT_DATE = '2024-11';
-echo "\nmsexport v" . MSEXPORT_VERSION . " - export MuseScore score as mp3 parts (and more)\n(c) " . MSEXPORT_DATE . " moving-bits (https://github.com/moving-bits/)\nDistributed under Apache 2.0 license\n\n";
+const MSEXPORT_VERSION = '1.2';
+const MSEXPORT_DATE = '2025-04';
+echo "\nmsexport v" . MSEXPORT_VERSION . " - export MuseScore score as mp3 parts (and more)\n(c) " . MSEXPORT_DATE . " moving-bits (https://github.com/moving-bits/)\nDistributed under Apache 2.0 license\n\n\r\n";
 
 if (!extension_loaded('mbstring')) {
     echo "Missing mbstring extension\r\n";
     die();
 }
+
+require_once 'i_config_defaults.php';
+if (!@include_once('i_config.php')) {
+    echo "Warning: No individual configuration file \"i_config.php\" found, running on default values only.\r\n\r\n";
+}
+define('bUSE_SINGLE_THREADED', $bUseSingleThreaded);
+define('cWORKDIR', $cWorkDir);
+define('cEXPORTDIR', $cExportDir);
+define('acVOICES', $acVoices);
+define('MAX_THREADS', $iMaxThreads);
 
 $bParallelExists = class_exists("\parallel\Runtime");
 if (!$bParallelExists && !bUSE_SINGLE_THREADED) {
@@ -53,6 +61,7 @@ if (!$bParallelExists && !bUSE_SINGLE_THREADED) {
     die();
 }
 
+// some MS-specific constants
 const MS4_AUDIOSETTINGS = 'audiosettings.json';
 
 // --------------------------------------------------------------------------------------------------------------------
