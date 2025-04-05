@@ -40,6 +40,14 @@ $cMuseScore = '"c:/program files/musescore 3/bin/musescore3.exe"';
 $acVoices = ['solo', 'soprano', 'alto', 'tenor', 'bass'];
 
 /**
+ * @var $aVoice
+ * @var $aPiano
+ * Translations (bank, instrument)
+ */
+$aVoice = [1, 52]; // 52 = Choir Aah in MuseScore default Soundfile
+$aPiano = [1, 0];  //  0 = Grand Piano in MuseScore default Soundfile
+
+/**
  * @var $iMaxThreads
  * number of max allowed parallel threads (multithreaded version only)
  */

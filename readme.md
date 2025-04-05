@@ -86,6 +86,7 @@ Note: There will be no file generated for the `Piano` instrument, as `msexport.p
 
 ## Releases
 
+- v1.3 (2025-04-05) optional bank switching and instrument selection
 - v1.2 (2025-04-04) put configuration defaults in separate file (i_config_defaults.php)
   - Breaking change: naming of configuration items (they are now variables instead of constants in configuration file)
 - v1.1 (2024-11-08) first release for MuseScore 4 (known issues: PDF export, switching of instruments)

@@ -15,6 +15,7 @@
  * - switching instruments does not yet work
  *
  * change history:
+ * 2025-04-05   moving-bits     optional bank switching and instrument selection
  * 2025-04-04   moving-bits     put configuration defaults in separate config file i_config_defaults.php - breaking change: naming of configuration items
  * 2024-11-08   moving-bits     adjust volume in MuseScore 4 files
  * 2024-11-08   moving-bits     ignore excerpts in MuseScore 4 files
@@ -36,7 +37,7 @@
 // --------------------------------------------------------------------------------------------------------------------
 // check PHP environment, load program default & individual configuration
 
-const MSEXPORT_VERSION = '1.2';
+const MSEXPORT_VERSION = '1.3';
 const MSEXPORT_DATE = '2025-04';
 echo "\nmsexport v" . MSEXPORT_VERSION . " - export MuseScore score as mp3 parts (and more)\n(c) " . MSEXPORT_DATE . " moving-bits (https://github.com/moving-bits/)\nDistributed under Apache 2.0 license\n\n\r\n";
 
@@ -53,6 +54,8 @@ define('bUSE_SINGLE_THREADED', $bUseSingleThreaded);
 define('cWORKDIR', $cWorkDir);
 define('cEXPORTDIR', $cExportDir);
 define('acVOICES', $acVoices);
+define('aVOICE', $aVoice);
+define('aPIANO', $aPiano);
 define('MAX_THREADS', $iMaxThreads);
 
 $bParallelExists = class_exists("\parallel\Runtime");
@@ -63,6 +66,8 @@ if (!$bParallelExists && !bUSE_SINGLE_THREADED) {
 
 // some MS-specific constants
 const MS4_AUDIOSETTINGS = 'audiosettings.json';
+const MS_CTRLIDX_VOLUME = 7;
+const MS_CTRLIDX_BANK = 32;
 
 // --------------------------------------------------------------------------------------------------------------------
 
@@ -111,14 +116,24 @@ abstract class CAbstractMuseScoreExport {
         }
     }
 
-    protected function getVolumeCtrlIdx($iPart) {
+    /* returns index of control item (creating it with given default value if necessary) */
+    protected function getCtrlIdx($iPart, $iCtrl, $iDefaultValue) {
+        $iIdx = -1;
         $aController = $this->aPart[$iPart]->Instrument->Channel->controller;
         for($i=0, $iNumController = count($aController); $i < $iNumController; $i++) {
-            if((string)$aController[$i]['ctrl'] == "7") {
-                return $i;
+            if((string)$aController[$i]['ctrl'] == $iCtrl) {
+                $iIdx = $i;
+                break;
             }
         }
-        return -1;
+        if ($iIdx == -1) {
+            // add control item with given default value (if required)
+            $hController = $this->aPart[$iPart]->Instrument->Channel->addChild('controller');
+            $hController->addAttribute('ctrl', $iCtrl);
+            $hController->addAttribute('value', $iDefaultValue);
+            $iIdx = count($this->aPart[$iPart]->Instrument->Channel->controller) - 1;
+        }
+        return $iIdx;
     }
 
     protected function setVolume($iPart, $iVolThis, $iVolOthers, $iVolInstruments) {
@@ -144,10 +159,12 @@ abstract class CAbstractMuseScoreExport {
         return $iVolumePercent < 5 ? -60 : ($iVolumePercent < 60 ? -9 : 0);
     }
 
-    protected function setInstruments($iInstrument) {
+    protected function setInstruments(array $iInstrument) {
         for($j=0; $j < $this->iNumParts; $j++) {
             if($this->aParts[$j]['bIsVoice']) {
-                $this->aPart[$j]->Instrument->Channel->program['value'] = $iInstrument;
+                $this->aPart[$j]->Instrument->Channel->program['value'] = $iInstrument[1];
+                $iBank = $this->getCtrlIdx($j, MS_CTRLIDX_BANK, 1);
+                $this->aPart[$j]->Instrument->Channel->controller[$iBank]['value'] = $iInstrument[0];
             }
         }
     }
@@ -255,14 +272,7 @@ abstract class CAbstractMuseScoreExport {
 
         // analyze parts
         for($i = 0; $i < $this->iNumParts; $i++) {
-            $iVolumeCtrlIdx = $this->getVolumeCtrlIdx($i);
-            if($iVolumeCtrlIdx == -1) {
-                // add volume info (if required)
-                $hController = $this->aPart[$i]->Instrument->Channel->addChild('controller');
-                $hController->addAttribute('ctrl', '7');
-                $hController->addAttribute('value', '80');
-                $iVolumeCtrlIdx = count($this->aPart[$i]->Instrument->Channel->controller) - 1;
-            }
+            $iVolumeCtrlIdx = $this->getCtrlIdx($i, MS_CTRLIDX_VOLUME, 80);
             $iPartId = intval($this->aPart[$i]['id']);
             if ($iPartId == 0) {
                 $iPartId = $i;
@@ -300,7 +310,7 @@ abstract class CAbstractMuseScoreExport {
             $cLongname = $this->aParts[$i]['cLongname'];
             if ($this->aParts[$i]['bIsVoice']) {
                 // ----------------------------------
-                $this->setInstruments(52); // Choir Aahs
+                $this->setInstruments(aVOICE);
 
                 $this->setVolume($i, 100, 50, 100);
                 $this->prepareExport('-' . $cLongname);
@@ -312,7 +322,7 @@ abstract class CAbstractMuseScoreExport {
                 $this->prepareExport('-' . $cLongname . ' (Solo)');
 
                 // ----------------------------------
-                $this->setInstruments(0); // Grand Piano
+                $this->setInstruments(aPIANO);
                 $this->setVolume($i, 100, 50, 50);
                 $this->prepareExport('-' . $cLongname . ' (Piano)');
             }
@@ -324,11 +334,11 @@ abstract class CAbstractMuseScoreExport {
         // ----------------------------------
         // all voices
         // ----------------------------------
-        $this->setInstruments(52); // Choir Aahs
+        $this->setInstruments(aVOICE);
         $this->setVolume(-1, 100, 100, 100);
         $this->prepareExport('-Alle');
 
-        $this->setInstruments(0); // Grand Piano
+        $this->setInstruments(aPIANO);
         $this->setVolume(-1, 100, 100, 100);
         $this->prepareExport('-Alle (Piano)');
 
